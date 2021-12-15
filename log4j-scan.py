@@ -308,7 +308,7 @@ def scan_url(url, callback_host, customDns=False):
             except Exception as e:
                 cprint(f"EXCEPTION: {e}")
 
-    responses = grequests.map(_requests, size=20)
+    responses = grequests.map(_requests, size=50)
     for __ in responses:
         print("__",  __)
 

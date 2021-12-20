@@ -8,6 +8,10 @@
 # Secure your Attack Surface with FullHunt.io.
 # ******************************************************************
 
+# at the beginning of the script
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import argparse
 import random
 import requests
@@ -113,6 +117,8 @@ parser.add_argument("--custom-dns-callback-host",
 
 args = parser.parse_args()
 
+def exception_handler(request, exception):
+        print("Request failed", exception)
 
 def get_fuzzing_headers(payload):
     fuzzing_headers = {}
@@ -308,7 +314,10 @@ def scan_url(url, callback_host, customDns=False):
             except Exception as e:
                 cprint(f"EXCEPTION: {e}")
 
-    responses = grequests.map(_requests, size=50)
+    
+
+    responses = grequests.map(_requests, size=50, exception_handler=exception_handler)
+    # print(responses)
     for __ in responses:
         print("__",  __)
 
